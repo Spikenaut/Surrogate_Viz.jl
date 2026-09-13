@@ -775,3 +775,5 @@ end
         @test nrow(runs_df) == 1
     end
 end
+
+include("smoke_scripts_test.jl")
