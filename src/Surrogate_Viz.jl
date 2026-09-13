@@ -254,14 +254,23 @@ corinth-canal stamps `telemetry_source` as one of:
 Returns `"measured"`, `"synthetic"`, `"synthetic_fallback"`, or `"unknown"`.
 Anything unrecognised is `"unknown"` rather than being assumed measured — an
 unfamiliar value is not evidence of real data.
+
+Accepts `missing` as well as `nothing`: this is exported public API, and a
+`telemetry_source` column re-loaded from a CSV (rather than freshly built from
+a manifest) commonly represents an absent cell as `missing`, not `nothing`.
+Both mean the same thing here — no source was recorded — so both classify as
+`"unknown"` rather than throwing.
 """
-function telemetry_provenance(telemetry_source::Union{Nothing,AbstractString})::String
-    telemetry_source === nothing && return "unknown"
+function telemetry_provenance(telemetry_source::Union{Nothing,Missing,AbstractString})::String
+    (telemetry_source === nothing || telemetry_source === missing) && return "unknown"
     s = String(telemetry_source)
     isempty(s) && return "unknown"
     s == "synthetic" && return "synthetic"
     s == "synthetic_fallback" && return "synthetic_fallback"
-    startswith(s, "csv_") && return "measured"
+    # Require an actual stem after the prefix, matching the documented
+    # `csv_<stem>` contract above. A bare "csv_" names no file and is not
+    # evidence of a real CSV having been read.
+    startswith(s, "csv_") && length(s) > length("csv_") && return "measured"
     return "unknown"
 end
 
@@ -271,7 +280,7 @@ end
 True only when the telemetry is measured. Synthetic, fallback-synthetic and
 unrecognised sources are all false.
 """
-is_measured_telemetry(telemetry_source::Union{Nothing,AbstractString}) =
+is_measured_telemetry(telemetry_source::Union{Nothing,Missing,AbstractString}) =
     telemetry_provenance(telemetry_source) == "measured"
 
 function load_saaq_bundle(path::AbstractString)::SaaqBundle

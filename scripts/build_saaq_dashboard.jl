@@ -156,8 +156,17 @@ function build_dashboard_html(runs_df, metrics_df, warnings_df; date_label, heat
     # or synthesised. A run can be `completed` (run_status == real) with
     # `telemetry_source == synthetic_fallback`, and reporting only run_status
     # presents fabricated telemetry as measurement.
-    provenance = hasproperty(runs_df, :telemetry_provenance) ?
-        string.(runs_df.telemetry_provenance) :
+    #
+    # Re-derived from the raw telemetry_source column via SV.telemetry_provenance
+    # rather than trusting a pre-computed :telemetry_provenance column. This
+    # table is read from a CSV on disk (runs_table.csv), which can be legacy,
+    # hand-edited, or produced by a normalizer version older than this
+    # classifier — re-deriving from the one raw field makes the classification
+    # correct regardless of what (if anything) that column already says, and
+    # SV.telemetry_provenance already treats `missing`/absent/unrecognised
+    # values as "unknown" rather than throwing or silently miscounting.
+    provenance = hasproperty(runs_df, :telemetry_source) ?
+        [SV.telemetry_provenance(v) for v in runs_df.telemetry_source] :
         fill("unknown", n_runs)
     n_measured = count(isequal("measured"), provenance)
     n_fabricated = count(p -> p in ("synthetic", "synthetic_fallback"), provenance)
@@ -166,8 +175,18 @@ function build_dashboard_html(runs_df, metrics_df, warnings_df; date_label, heat
     # explicitly: measured + fabricated + unverified must reconcile to the run
     # total, or a legacy/unfamiliar source would vanish from the breakdown and
     # the "of N" denominator would silently overstate what was accounted for.
+    #
+    # This is now an invariant by construction — telemetry_provenance always
+    # returns one of exactly these four strings for any input — rather than a
+    # runtime check on unclean external data, so a plain error() (naming the
+    # actual counts) is more useful here than @assert if it ever did fire.
     n_unverified = count(isequal("unknown"), provenance)
-    @assert n_measured + n_fabricated + n_unverified == n_runs
+    n_measured + n_fabricated + n_unverified == n_runs || error(
+        "build_saaq_dashboard.jl: telemetry provenance counts do not reconcile " *
+        "(measured=$(n_measured) + fabricated=$(n_fabricated) + unverified=$(n_unverified) " *
+        "!= total=$(n_runs)). This should not be possible — telemetry_provenance " *
+        "is total over its input type; please report this as a bug.",
+    )
 
     write(buf, """
     <div class="summary-cards">
@@ -248,17 +267,30 @@ function build_dashboard_html(runs_df, metrics_df, warnings_df; date_label, heat
         # Mark the telemetry source with its provenance. A bare `csv_*` string
         # tells a reader nothing about whether the producer actually found that
         # CSV or silently fell back to synthesising the data.
-        prov = hasproperty(row, :telemetry_provenance) ?
-            string(row.telemetry_provenance) : "unknown"
+        #
+        # Re-derived from the raw value via SV.telemetry_provenance, same as
+        # the summary card above and for the same reason — this table is
+        # loaded from a CSV, not guaranteed to carry an up-to-date
+        # :telemetry_provenance column of its own.
+        prov = SV.telemetry_provenance(row.telemetry_source)
         prov_label = prov == "measured" ? "measured" :
                      prov == "synthetic" ? "SYNTHETIC" :
                      prov == "synthetic_fallback" ? "SYNTHETIC FALLBACK" : "UNVERIFIED"
-        # html_escape: telemetry_source comes from an upstream manifest, so it
-        # is untrusted input to this generated page. fmt_val does not escape.
-        # `prov` is escaped too since it reaches a class attribute; it is drawn
-        # from a fixed set today, but escaping costs nothing and keeps the
-        # attribute safe if the classifier ever passes a value through.
-        write(buf, "<td><code>$(html_escape(fmt_val(row.telemetry_source)))</code> ")
+        # telemetry_source comes from an upstream manifest, so it is untrusted
+        # input to this generated page and must be escaped. `prov` is escaped
+        # too since it reaches a class attribute; it is drawn from a fixed set
+        # today, but escaping costs nothing and keeps the attribute safe if the
+        # classifier ever passes a value through.
+        #
+        # fmt_val's missing/nothing case returns the literal &mdash; entity,
+        # which html_escape(fmt_val(...)) would then escape a second time
+        # (the "&" becomes "&amp;", so "&mdash;" renders as the literal text
+        # "&mdash;" instead of an em dash). Escape the raw value first and
+        # only substitute the placeholder for genuinely absent values, so the
+        # entity is never round-tripped through html_escape.
+        telemetry_html = (row.telemetry_source === missing || row.telemetry_source === nothing) ?
+            "&mdash;" : html_escape(string(row.telemetry_source))
+        write(buf, "<td><code>$(telemetry_html)</code> ")
         write(buf, "<span class='badge prov-$(html_escape(prov))'>$(html_escape(prov_label))</span></td>")
         write(buf, "<td class='col-repeat'>$(fmt_val(row.repeat_idx)) / $(fmt_val(row.repeat_count))</td>")
         write(buf, "<td class='col-ticks'>$(fmt_val(row.ticks_effective))</td>")

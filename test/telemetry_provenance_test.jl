@@ -31,6 +31,18 @@ const FIXTURES = joinpath(@__DIR__, "fixtures", "bundles")
     # `csv` without the separator must not pass as measured.
     @test telemetry_provenance("csvish") == "unknown"
 
+    # The prefix alone, with no stem, names no real file and is not evidence
+    # of measurement — the documented contract is `csv_<stem>`.
+    @test telemetry_provenance("csv_") == "unknown"
+
+    # `missing` is Julia's other absence representation, distinct from
+    # `nothing`. A `telemetry_source` column re-loaded from CSV commonly uses
+    # `missing` for an empty cell, and this is exported public API, so both
+    # must be handled the same way rather than throwing MethodError on one of
+    # them.
+    @test telemetry_provenance(missing) == "unknown"
+    @test !is_measured_telemetry(missing)
+
     @test is_measured_telemetry("csv_re4_path_tracing_telemetry")
     @test !is_measured_telemetry("synthetic")
     @test !is_measured_telemetry("synthetic_fallback")
@@ -77,12 +89,23 @@ end
 @testset "every fixture bundle carries provenance" begin
     # Guards against a future fixture being added without the column, which
     # would make the dashboard silently fall back to "unknown".
+    #
+    # The membership check alone (is the value one of the four strings
+    # telemetry_provenance can ever return?) is true by construction — the
+    # function's return type is a closed set, so it cannot fail regardless of
+    # what the normalizer actually wired up. The real regression this guards
+    # against is the normalizer classifying the WRONG field, or a stale/cached
+    # value slipping through: cross-check the stored column against calling
+    # the same classifier directly on the bundle's own manifest field.
     for dir in readdir(FIXTURES; join = true)
         isdir(dir) || continue
         isfile(joinpath(dir, "run_manifest.json")) || continue
-        runs_df, _, _ = normalize_bundle_to_tables(load_saaq_bundle(dir))
+        bundle = load_saaq_bundle(dir)
+        runs_df, _, _ = normalize_bundle_to_tables(bundle)
         @test hasproperty(runs_df, :telemetry_provenance)
-        @test runs_df.telemetry_provenance[1] in
-              ("measured", "synthetic", "synthetic_fallback", "unknown")
+
+        expected = telemetry_provenance(bundle.manifest.telemetry_source)
+        @test runs_df.telemetry_provenance[1] == expected
+        @test runs_df.telemetry_measured[1] == is_measured_telemetry(bundle.manifest.telemetry_source)
     end
 end
