@@ -34,27 +34,37 @@ jobs:
     if: >-
       github.event_name == 'push' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    env:
-      # Resolve packages into a per-repository depot rather than the runner
-      # account's shared ~/.julia. That account hosts several repositories'
-      # runners, so a tampered package resolved by any one of them would
-      # otherwise persist in the shared depot for every later job on this host.
-      # See .github/RUNNER.md for the full trust boundary.
-      #
-      # Sited one level ABOVE the checkout on purpose. actions/checkout defaults
-      # to clean: true, which runs `git clean -ffdx` — and -x deletes ignored
-      # files, which a depot inside the checkout would be. Putting it in the
-      # parent keeps it out of checkout's reach, so it survives between runs of
-      # this repo while staying isolated from every other repo on the host.
-      #
-      # Written as `github.workspace/..` rather than `runner.workspace`, which
-      # names that directory directly but is NOT available in a job-level env
-      # block: using it made the whole workflow fail to parse (the run showed up
-      # as ".github/workflows/julia.yml: failure" with no jobs at all, rather
-      # than as "Julia CI"). The github context is available here.
-      JULIA_DEPOT_PATH: ${{ github.workspace }}/../julia_depot
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Scope the Julia depot to this job
+        # Resolve packages into RUNNER_TEMP rather than the runner account's
+        # shared ~/.julia. That account hosts several repositories' runners,
+        # so a tampered package resolved by any one of them would otherwise
+        # persist in the shared depot for every later job on this host. See
+        # .github/RUNNER.md for the full trust boundary.
+        #
+        # A previous version of this sited the depot one level above the
+        # checkout so it would persist and be reused between runs. That is
+        # unsafe on this host: this repo's runner registration has, in
+        # practice, ended up with two listener processes bound to the same
+        # `_work` tree at once (see .github/RUNNER.md), and two concurrent
+        # `Pkg.instantiate()` calls writing into the same persistent depot
+        # path can corrupt its package/registry state. RUNNER_TEMP is an
+        # official Actions runner variable, documented as emptied before and
+        # after every job, so each job run gets an isolated depot with no
+        # cross-job corruption risk and no manual cleanup — at the cost of a
+        # full instantiate + precompile on every run instead of reusing a
+        # warm cache.
+        #
+        # Set via $GITHUB_ENV rather than a job-level `env:` block. RUNNER_TEMP
+        # is a real shell environment variable, but job-level `env:` values only
+        # expand `${{ }}` GitHub Actions expressions, not shell variables — and
+        # `${{ runner.temp }}` there carries the same risk already proven for
+        # `${{ runner.workspace }}`, which made this entire workflow fail to
+        # parse (the run showed up as ".github/workflows/julia.yml: failure"
+        # with no jobs at all) when it was used in this exact job-level `env:`
+        # block.
+        run: echo "JULIA_DEPOT_PATH=${RUNNER_TEMP}/julia_depot" >> "$GITHUB_ENV"
       - name: Instantiate with CUDA
         run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.add("CUDA")'
       - name: Run tests
