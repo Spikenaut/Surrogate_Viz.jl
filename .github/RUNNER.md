@@ -199,10 +199,14 @@ repository.
 
 ### The Julia depot is shared
 
-Self-hosted jobs run `Pkg.instantiate()` / `Pkg.add("CUDA")` against the
-account's single `~/.julia` with no per-repo `JULIA_DEPOT_PATH`. A tampered
-package resolved by any repository on this host persists for the next job of any
-other repository.
+Only the `test` job runs bare Julia directly on the host — it calls
+`Pkg.instantiate()` / `Pkg.add("CUDA")` against the account's single
+`~/.julia` with no per-repo `JULIA_DEPOT_PATH`. `gpu-preflight` runs no Julia
+at all, and `cuda-visuals` runs its Julia entirely inside a `docker run --rm`
+container (`run_cuda_visuals.sh`), never touching the host's `~/.julia`. So
+the shared-depot risk is scoped to `test`, but that is still enough: a
+tampered package resolved there persists in `~/.julia` for the next `test`
+run of any other repository on this host.
 
 ### Most actions are pinned to movable tags
 
@@ -238,6 +242,16 @@ the host*. It is not evidence the GPU is usable. Read the log — or rely on
 `branches/main/protection` returns 404 and no rulesets are configured, so **no
 check is required to merge** — including `test-cpu` and every security bot.
 Merge decisions are entirely human.
+
+Caveat for whoever re-runs this check later: GitHub's branch-protection
+sub-endpoints require admin (or owner) permission on the repo, and a 404 from
+`branches/{branch}/protection` is what you get both when no protection is
+configured *and* when the caller lacks that permission — the response does
+not distinguish the two. The finding above was confirmed with an
+admin-permission token (`gh api repos/<owner>/<repo> --jq '.permissions'`
+showed `admin: true`), so it is conclusive here, but re-running this check
+with a lower-privileged token would produce the same 404 for the wrong
+reason.
 
 ## If you are reviewing a PR that touches `.github/workflows/`
 
