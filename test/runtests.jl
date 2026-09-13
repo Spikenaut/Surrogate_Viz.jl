@@ -727,4 +727,5 @@ end
     @test nrow(issues_df) > 0
 end
 
+include("smoke_scripts_test.jl")
 include("telemetry_provenance_test.jl")
