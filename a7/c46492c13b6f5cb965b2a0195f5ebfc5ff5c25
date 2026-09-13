@@ -1,0 +1,35 @@
+import_corinth_runs.jl
+  s_2d5f80fb8407b9::t_8b13469d448509 1-8,12,115-117
+scripts/ingest_grok_ozempic_bundles.jl
+  s_2d5f80fb8407b9::t_8b13469d448509 8-13,19-25,27-31,33,66-68
+scripts/ingest_saaq_bundles.jl
+  s_2d5f80fb8407b9::t_8b13469d448509 8-13,19-25,27-31,33,66-68
+test/smoke_scripts_test.jl
+  s_2d5f80fb8407b9::t_8b13469d448509 1-127
+compare_saaq1_5_baseline_pair.jl
+  s_2d5f80fb8407b9::t_8b13469d448509 3-8,14-18,50-134,146-162,294-296
+test/runtests.jl
+  ai_agent 730
+SAAQ_latent_discovery.jl
+  s_2d5f80fb8407b9::t_8b13469d448509 9-18,22,25-28,235-237
+scripts/validate_grok_ozempic_bundle.jl
+  s_2d5f80fb8407b9::t_8b13469d448509 8-13,17-20,22-26,28,66-68
+scripts/validate_saaq_bundle.jl
+  s_2d5f80fb8407b9::t_8b13469d448509 8-13,17-20,22-26,28,65-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a7c46492c13b6f5cb965b2a0195f5ebfc5ff5c25",
+  "prompts": {},
+  "sessions": {
+    "s_2d5f80fb8407b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "236ff508-26fa-466a-b4dd-3ff2f464f60f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
