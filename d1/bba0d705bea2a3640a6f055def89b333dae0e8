@@ -1,0 +1,19 @@
+.github/workflows/julia.yml
+  s_2d5f80fb8407b9::t_4e57340a41c23f 39-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d1bba0d705bea2a3640a6f055def89b333dae0e8",
+  "prompts": {},
+  "sessions": {
+    "s_2d5f80fb8407b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "236ff508-26fa-466a-b4dd-3ff2f464f60f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
